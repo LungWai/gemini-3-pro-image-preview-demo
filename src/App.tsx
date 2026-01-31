@@ -6,11 +6,16 @@ import { LoadingOverlay } from '@/features/chat/components/LoadingOverlay'
 import { SettingsDialog } from '@/features/chat/components/SettingsDialog'
 import { useChatSession } from '@/features/chat/hooks/useChatSession'
 import { apiConfig, type ModelName } from '@/features/chat/utils/apiConfig'
+import { AuthProvider, useAuth, LoginDialog } from '@/features/auth'
+import { CredentialsEditor } from '@/features/admin'
 
-function App() {
+function AppContent() {
   const { state, actions } = useChatSession()
+  const { isAuthenticated } = useAuth()
   const [settingsOpen, setSettingsOpen] = useState(!apiConfig.isConfigured())
   const [model, setModel] = useState<ModelName>(apiConfig.getModel())
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
 
   const handleModelChange = (value: ModelName) => {
     setModel(value)
@@ -24,12 +29,22 @@ function App() {
     }
   }
 
+  const handleAdminClick = () => {
+    if (isAuthenticated) {
+      setAdminOpen(true)
+    } else {
+      setLoginOpen(true)
+    }
+  }
+
   return (
     <div className="flex h-screen w-full flex-col bg-background text-foreground">
       <ChatHeader
         loading={state.loading}
         onReset={actions.reset}
         onOpenSettings={() => handleSettingsOpenChange(true)}
+        onOpenAdmin={handleAdminClick}
+        isAuthenticated={isAuthenticated}
       />
 
       <main className="flex flex-1 overflow-hidden">
@@ -61,6 +76,7 @@ function App() {
         uploads={state.uploadedImages}
         onAddFiles={actions.addUploads}
         onRemoveUpload={actions.removeUpload}
+        onUpdateUpload={actions.updateUpload}
         aspectRatio={state.aspectRatio}
         imageSize={state.imageSize}
         model={model}
@@ -74,7 +90,21 @@ function App() {
       />
 
       <SettingsDialog open={settingsOpen} onOpenChange={handleSettingsOpenChange} />
+      <LoginDialog
+        open={loginOpen}
+        onOpenChange={setLoginOpen}
+        onSuccess={() => setAdminOpen(true)}
+      />
+      <CredentialsEditor open={adminOpen} onOpenChange={setAdminOpen} />
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

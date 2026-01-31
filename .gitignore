@@ -19,3 +19,4 @@ pnpm-debug.log*
 # Lock files (keep only pnpm)
 package-lock.json
 yarn.lock
+.vercel

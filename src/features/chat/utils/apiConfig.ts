@@ -3,6 +3,13 @@ const API_KEY_KEY = 'gemini_api_key';
 const API_TYPE_KEY = 'api_type';
 const REQUEST_MODE_KEY = 'request_mode';
 
+// GCP Gemini specific keys
+const GCP_PROJECT_ID_KEY = 'gcp_project_id';
+const GCP_REGION_KEY = 'gcp_region';
+const GCP_MODEL_KEY = 'gcp_model';
+const GCP_AUTH_TYPE_KEY = 'gcp_auth_type';
+const GCP_ACCESS_TOKEN_KEY = 'gcp_access_token';
+
 // Legacy key (backward compatibility)
 export const STORAGE_KEY_MODEL = 'chat_model';
 
@@ -18,6 +25,35 @@ export const OPENAI_PRESET_MODELS = [
   'gemini-3-pro-image-preview-1k',
 ] as const;
 
+// GCP Gemini 可用区域列表
+export const GCP_REGIONS = [
+  'us-central1',
+  'us-east4',
+  'us-west1',
+  'us-west4',
+  'europe-west1',
+  'europe-west2',
+  'europe-west4',
+  'asia-northeast1',
+  'asia-northeast3',
+  'asia-southeast1',
+] as const;
+
+// GCP Gemini available models list (including image generation models)
+export const GCP_MODELS = [
+  'gemini-3-pro-image-preview',
+  'gemini-2.5-flash-image',
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash-001',
+  'gemini-1.5-pro-002',
+  'gemini-1.5-flash-002',
+  'imagen-3.0-generate-002',
+] as const;
+
+export type GcpRegion = (typeof GCP_REGIONS)[number];
+export type GcpModelName = string;
+export type GcpAuthType = 'api_key' | 'access_token';
+
 export type GeminiModelName = string;
 export type OpenAIModelName = string;
 
@@ -26,12 +62,15 @@ export type ModelName = string;
 
 const DEFAULT_GEMINI_MODEL = 'gemini-3-pro-image-preview';
 const DEFAULT_OPENAI_MODEL: OpenAIModelName = 'gemini-3-pro-image-preview';
+const DEFAULT_GCP_MODEL: GcpModelName = 'gemini-3-pro-image-preview';
+const DEFAULT_GCP_REGION: GcpRegion = 'us-central1';
 
-export type ApiType = 'gemini' | 'openai';
+export type ApiType = 'gemini' | 'openai' | 'gcp';
 export type RequestMode = 'client' | 'server';
 
-const isApiType = (value: unknown): value is ApiType => value === 'gemini' || value === 'openai';
+const isApiType = (value: unknown): value is ApiType => value === 'gemini' || value === 'openai' || value === 'gcp';
 const isRequestMode = (value: unknown): value is RequestMode => value === 'client' || value === 'server';
+const isGcpAuthType = (value: unknown): value is GcpAuthType => value === 'api_key' || value === 'access_token';
 
 const safeGetItem = (key: string): string | null => {
   try {
@@ -228,6 +267,65 @@ export const MODEL_LIST: ReadonlyArray<string> = new Proxy([] as string[], {
   },
 });
 
+// GCP Gemini configuration functions
+const getGcpProjectId = (): string => safeGetItem(GCP_PROJECT_ID_KEY) || '';
+const setGcpProjectId = (projectId: string): void => {
+  safeSetItem(GCP_PROJECT_ID_KEY, projectId.trim());
+};
+
+const getGcpRegion = (): GcpRegion => {
+  const stored = safeGetItem(GCP_REGION_KEY);
+  if (stored && GCP_REGIONS.includes(stored as GcpRegion)) {
+    return stored as GcpRegion;
+  }
+  return DEFAULT_GCP_REGION;
+};
+const setGcpRegion = (region: GcpRegion): void => {
+  safeSetItem(GCP_REGION_KEY, region);
+};
+
+const getGcpModel = (): GcpModelName => {
+  const model = safeGetItem(GCP_MODEL_KEY);
+  return model?.trim() || DEFAULT_GCP_MODEL;
+};
+const setGcpModel = (model: string): void => {
+  const normalized = model.trim();
+  if (normalized) {
+    safeSetItem(GCP_MODEL_KEY, normalized);
+  }
+};
+
+const getGcpAuthType = (): GcpAuthType => {
+  const stored = safeGetItem(GCP_AUTH_TYPE_KEY);
+  return isGcpAuthType(stored) ? stored : 'api_key';
+};
+const setGcpAuthType = (authType: GcpAuthType): void => {
+  safeSetItem(GCP_AUTH_TYPE_KEY, authType);
+};
+
+const getGcpAccessToken = (): string => safeGetItem(GCP_ACCESS_TOKEN_KEY) || '';
+const setGcpAccessToken = (token: string): void => {
+  safeSetItem(GCP_ACCESS_TOKEN_KEY, token.trim());
+};
+
+export type GcpConfig = {
+  projectId: string;
+  region: GcpRegion;
+  model: GcpModelName;
+  authType: GcpAuthType;
+  apiKey: string;
+  accessToken: string;
+};
+
+const getGcpConfig = (): GcpConfig => ({
+  projectId: getGcpProjectId(),
+  region: getGcpRegion(),
+  model: getGcpModel(),
+  authType: getGcpAuthType(),
+  apiKey: safeGetItem(API_KEY_KEY) || '',
+  accessToken: getGcpAccessToken(),
+});
+
 export type ApiConfig = {
   getUrl: () => string;
   getKey: () => string;
@@ -256,6 +354,21 @@ export type ApiConfig = {
   addOpenAIModel: (model: string) => void;
   removeOpenAIModel: (model: string) => void;
   updateOpenAIModel: (oldModel: string, newModel: string) => void;
+
+  /**
+   * GCP Gemini 配置
+   */
+  getGcpProjectId: () => string;
+  setGcpProjectId: (projectId: string) => void;
+  getGcpRegion: () => GcpRegion;
+  setGcpRegion: (region: GcpRegion) => void;
+  getGcpModel: () => GcpModelName;
+  setGcpModel: (model: string) => void;
+  getGcpAuthType: () => GcpAuthType;
+  setGcpAuthType: (authType: GcpAuthType) => void;
+  getGcpAccessToken: () => string;
+  setGcpAccessToken: (token: string) => void;
+  getGcpConfig: () => GcpConfig;
 
   /**
    * Backward compatibility: aliases to the current ApiType model getter/setter.
@@ -294,10 +407,33 @@ export const apiConfig: ApiConfig = {
   removeOpenAIModel,
   updateOpenAIModel,
 
-  getModel: () => (apiConfig.getType() === 'openai' ? getOpenAIModel() : getGeminiModel()),
+  // GCP Gemini functions
+  getGcpProjectId,
+  setGcpProjectId,
+  getGcpRegion,
+  setGcpRegion,
+  getGcpModel,
+  setGcpModel,
+  getGcpAuthType,
+  setGcpAuthType,
+  getGcpAccessToken,
+  setGcpAccessToken,
+  getGcpConfig,
+
+  getModel: () => {
+    const apiType = apiConfig.getType();
+    if (apiType === 'openai') return getOpenAIModel();
+    if (apiType === 'gcp') return getGcpModel();
+    return getGeminiModel();
+  },
   setModel: (model: ModelName) => {
-    if (apiConfig.getType() === 'openai') {
+    const apiType = apiConfig.getType();
+    if (apiType === 'openai') {
       setOpenAIModel(model);
+      return;
+    }
+    if (apiType === 'gcp') {
+      setGcpModel(model);
       return;
     }
     setGeminiModel(model);
@@ -317,7 +453,15 @@ export const apiConfig: ApiConfig = {
   setRequestMode: (mode: RequestMode) => {
     safeSetItem(REQUEST_MODE_KEY, mode);
   },
-  isConfigured: () => !!(safeGetItem(API_URL_KEY) && safeGetItem(API_KEY_KEY)),
+  isConfigured: () => {
+    const apiType = apiConfig.getType();
+    if (apiType === 'gcp') {
+      const config = getGcpConfig();
+      const hasAuth = config.authType === 'api_key' ? !!config.apiKey : !!config.accessToken;
+      return !!config.projectId && hasAuth;
+    }
+    return !!(safeGetItem(API_URL_KEY) && safeGetItem(API_KEY_KEY));
+  },
   clear: () => {
     safeRemoveItem(API_URL_KEY);
     safeRemoveItem(API_KEY_KEY);
@@ -328,5 +472,12 @@ export const apiConfig: ApiConfig = {
     safeRemoveItem(GEMINI_MODEL_KEY);
     safeRemoveItem(OPENAI_MODEL_KEY);
     safeRemoveItem(OPENAI_MODEL_LIST_KEY);
+
+    // Clear GCP config
+    safeRemoveItem(GCP_PROJECT_ID_KEY);
+    safeRemoveItem(GCP_REGION_KEY);
+    safeRemoveItem(GCP_MODEL_KEY);
+    safeRemoveItem(GCP_AUTH_TYPE_KEY);
+    safeRemoveItem(GCP_ACCESS_TOKEN_KEY);
   },
 };

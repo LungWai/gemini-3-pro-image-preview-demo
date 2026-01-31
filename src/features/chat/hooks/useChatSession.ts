@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { geminiClient } from '../services/geminiClient';
 import { openaiClient } from '../services/openaiClient';
+import { gcpGeminiClient } from '../services/gcpGeminiClient';
 import { apiConfig } from '../utils/apiConfig';
 import { createSessionId } from '../utils/session';
 import { limitUploads, toUploadItems } from '../utils/files';
@@ -221,6 +222,7 @@ type ChatAction =
   | { type: 'deleteMessage'; payload: string }
   | { type: 'addUploads'; payload: UploadItem[] }
   | { type: 'removeUpload'; payload: string }
+  | { type: 'updateUpload'; payload: { id: string; dataUrl: string } }
   | { type: 'clearUploads' }
   | { type: 'appendMessage'; payload: ChatMessage }
   | { type: 'setHistory'; payload: GeminiMessage[] }
@@ -291,6 +293,13 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       return { ...state, uploadedImages: [...state.uploadedImages, ...action.payload] };
     case 'removeUpload':
       return { ...state, uploadedImages: state.uploadedImages.filter((img) => img.id !== action.payload) };
+    case 'updateUpload':
+      return {
+        ...state,
+        uploadedImages: state.uploadedImages.map((img) =>
+          img.id === action.payload.id ? { ...img, dataUrl: action.payload.dataUrl } : img
+        ),
+      };
     case 'clearUploads':
       return { ...state, uploadedImages: [] };
     case 'appendMessage':
@@ -353,7 +362,9 @@ type RequestContext = {
 
 const getClient = () => {
   const apiType = apiConfig.getType();
-  return apiType === 'openai' ? openaiClient : geminiClient;
+  if (apiType === 'openai') return openaiClient;
+  if (apiType === 'gcp') return gcpGeminiClient;
+  return geminiClient;
 };
 
 const requestHandlers: Record<ChatRequestKind, (ctx: RequestContext) => Promise<GeminiResult>> = {
@@ -420,6 +431,7 @@ export type ChatActions = {
   setForceImageGuidance: (value: boolean) => void;
   addUploads: (files?: FileList | File[] | null) => Promise<void>;
   removeUpload: (id: string) => void;
+  updateUpload: (id: string, dataUrl: string) => void;
   deleteMessage: (id: string) => void;
   restoreSavedConversation: () => void;
   clearSavedConversation: () => void;
@@ -520,6 +532,11 @@ export function useChatSession(): UseChatSessionResult {
   );
 
   const removeUpload = useCallback((id: string) => dispatch({ type: 'removeUpload', payload: id }), []);
+
+  const updateUpload = useCallback(
+    (id: string, dataUrl: string) => dispatch({ type: 'updateUpload', payload: { id, dataUrl } }),
+    []
+  );
 
   const reset = useCallback(async () => {
     const confirmed = window.confirm('重置对话？这将清除历史记录。');
@@ -724,6 +741,7 @@ export function useChatSession(): UseChatSessionResult {
       },
       addUploads,
       removeUpload,
+      updateUpload,
       deleteMessage: (id: string) => dispatch({ type: 'deleteMessage', payload: id }),
       restoreSavedConversation: () => {
         const saved = readPersistedChat();

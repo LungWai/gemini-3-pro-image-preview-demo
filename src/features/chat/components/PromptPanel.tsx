@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, Send, Plus, Settings2, Edit } from 'lucide-react'
+import { Search, Send, Plus, Settings2, Edit, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { UploadStrip } from './UploadStrip'
@@ -8,6 +8,7 @@ import type { UploadItem, ChatMode, AspectRatio, ImageSize } from '@/features/ch
 import { extractFilesFromDataTransfer } from '../utils/files'
 import { cn } from '@/lib/utils'
 import { apiConfig, type ModelName } from '@/features/chat/utils/apiConfig'
+import { PresetMode } from '@/features/presets'
 
 type PromptPanelProps = {
   prompt: string
@@ -17,6 +18,7 @@ type PromptPanelProps = {
   uploads: UploadItem[]
   onAddFiles: (files?: FileList | File[] | null) => Promise<void>
   onRemoveUpload: (id: string) => void
+  onUpdateUpload: (id: string, dataUrl: string) => void
   aspectRatio: AspectRatio
   imageSize: ImageSize
   model: ModelName
@@ -37,6 +39,7 @@ export function PromptPanel({
   uploads,
   onAddFiles,
   onRemoveUpload,
+  onUpdateUpload,
   aspectRatio,
   imageSize,
   model,
@@ -53,7 +56,17 @@ export function PromptPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [showControls, setShowControls] = useState(false)
+  const [showPresets, setShowPresets] = useState(false)
   const apiType = apiConfig.getType()
+
+  const handlePresetSelect = (presetPrompt: string) => {
+    onPromptChange(presetPrompt)
+    setShowPresets(false)
+    // Auto-send if there are uploads
+    if (uploads.length > 0) {
+      setTimeout(() => onSend('generate'), 100)
+    }
+  }
 
   const handleIncomingFiles = async (files?: FileList | File[]) => {
     if (files && files.length > 0) {
@@ -155,7 +168,7 @@ export function PromptPanel({
         {/* Upload Strip - Floating above */}
         {uploads.length > 0 && (
            <div className="px-1">
-              <UploadStrip uploads={uploads} onRemove={onRemoveUpload} aspectRatio={aspectRatio} />
+              <UploadStrip uploads={uploads} onRemove={onRemoveUpload} onUpdateImage={onUpdateUpload} aspectRatio={aspectRatio} />
            </div>
         )}
 
@@ -202,6 +215,19 @@ export function PromptPanel({
               </div>
           </div>
 
+          {/* Collapsible Presets Panel */}
+          <div className={cn(
+             "overflow-hidden transition-all duration-300 ease-in-out px-2",
+              showPresets ? "max-h-[400px] opacity-100 mb-2" : "max-h-0 opacity-0"
+           )}>
+              <div className="bg-muted/40 rounded-xl p-3 mx-1 border border-border/20">
+                <PresetMode
+                  onSelectPreset={handlePresetSelect}
+                  disabled={loading}
+                />
+              </div>
+          </div>
+
           {/* Bottom Toolbar - Flexbox layout */}
           <div className="flex items-center justify-between p-1.5 pl-3 bg-muted/10 border-t border-border/40">
             <div className="flex items-center gap-1">
@@ -217,7 +243,7 @@ export function PromptPanel({
               >
                 <Plus className="h-4 w-4" />
               </Button>
-              
+
                <Button
                 variant="ghost"
                 size="icon"
@@ -229,6 +255,19 @@ export function PromptPanel({
                 title={showControls ? "收起设置" : "展开设置"}
               >
                 <Settings2 className="h-4 w-4" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-8 w-8 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-all duration-200",
+                  showPresets && "text-primary bg-primary/10 hover:bg-primary/20"
+                )}
+                onClick={() => setShowPresets(!showPresets)}
+                title={showPresets ? "Hide presets" : "Show presets"}
+              >
+                <Sparkles className="h-4 w-4" />
               </Button>
             </div>
 

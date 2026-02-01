@@ -31,15 +31,15 @@ export function ChatHeader({ loading, onReset, onOpenSettings, onOpenAdmin, isAu
         )}
       </div>
       <div className="flex items-center gap-1 md:gap-2">
-        {isAuthenticated && onOpenAdmin && (
+        {onOpenAdmin && (
           <Button
             variant="ghost"
             size="icon"
             onClick={onOpenAdmin}
-            title="Admin Settings"
+            title={isAuthenticated ? "Admin Settings" : "Admin Login"}
             className="h-9 w-9 rounded-xl ios-pressable hover:bg-secondary/80"
           >
-            <Shield className="h-5 w-5 text-primary" />
+            <Shield className={`h-5 w-5 ${isAuthenticated ? 'text-primary' : 'text-muted-foreground'}`} />
           </Button>
         )}
         {onOpenSettings && (

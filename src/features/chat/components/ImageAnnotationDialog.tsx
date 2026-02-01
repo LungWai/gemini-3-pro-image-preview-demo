@@ -5,9 +5,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Pencil,
   Square,
@@ -57,6 +60,11 @@ export function ImageAnnotationDialog({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const imageRef = useRef<HTMLImageElement | null>(null);
+
+  // PWA-friendly text input dialog state
+  const [textInputOpen, setTextInputOpen] = useState(false);
+  const [textInputValue, setTextInputValue] = useState('');
+  const [pendingTextPoint, setPendingTextPoint] = useState<Point | null>(null);
 
   // Load image when dialog opens
   useEffect(() => {
@@ -206,11 +214,10 @@ export function ImageAnnotationDialog({
         setCurrentAnnotation({ ...baseAnn, tool: 'arrow', start: point, end: point });
         break;
       case 'text': {
-        const text = prompt('输入文字:');
-        if (text) {
-          const textAnn = { ...baseAnn, tool: 'text' as const, position: point, text, fontSize: state.fontSize };
-          addAnnotation(textAnn);
-        }
+        // PWA-friendly: use modal dialog instead of prompt()
+        setPendingTextPoint(point);
+        setTextInputValue('');
+        setTextInputOpen(true);
         break;
       }
     }
@@ -276,6 +283,31 @@ export function ImageAnnotationDialog({
     setHistoryIndex(newHistory.length - 1);
   };
 
+  // PWA-friendly text input confirmation
+  const handleTextInputConfirm = () => {
+    if (pendingTextPoint && textInputValue.trim()) {
+      const textAnn = {
+        id: generateAnnotationId(),
+        color: state.currentColor,
+        strokeWidth: state.strokeWidth,
+        tool: 'text' as const,
+        position: pendingTextPoint,
+        text: textInputValue.trim(),
+        fontSize: state.fontSize,
+      };
+      addAnnotation(textAnn);
+    }
+    setTextInputOpen(false);
+    setTextInputValue('');
+    setPendingTextPoint(null);
+  };
+
+  const handleTextInputCancel = () => {
+    setTextInputOpen(false);
+    setTextInputValue('');
+    setPendingTextPoint(null);
+  };
+
   const handleSave = () => {
     if (!canvasRef.current) return;
     const dataUrl = canvasRef.current.toDataURL('image/png');
@@ -305,13 +337,14 @@ export function ImageAnnotationDialog({
     ? (imageDimensions.height / imageDimensions.width) * canvasWidth
     : 600;
 
+  // PWA-friendly: Use larger icons for better touch targets
   const toolButtons: { tool: AnnotationTool; icon: React.ReactNode; label: string }[] = [
-    { tool: 'pen', icon: <Pencil className="h-4 w-4" />, label: '画笔' },
-    { tool: 'rectangle', icon: <Square className="h-4 w-4" />, label: '矩形' },
-    { tool: 'circle', icon: <Circle className="h-4 w-4" />, label: '圆形' },
-    { tool: 'arrow', icon: <ArrowRight className="h-4 w-4" />, label: '箭头' },
-    { tool: 'text', icon: <Type className="h-4 w-4" />, label: '文字' },
-    { tool: 'eraser', icon: <Eraser className="h-4 w-4" />, label: '橡皮擦' },
+    { tool: 'pen', icon: <Pencil className="h-5 w-5" />, label: '画笔' },
+    { tool: 'rectangle', icon: <Square className="h-5 w-5" />, label: '矩形' },
+    { tool: 'circle', icon: <Circle className="h-5 w-5" />, label: '圆形' },
+    { tool: 'arrow', icon: <ArrowRight className="h-5 w-5" />, label: '箭头' },
+    { tool: 'text', icon: <Type className="h-5 w-5" />, label: '文字' },
+    { tool: 'eraser', icon: <Eraser className="h-5 w-5" />, label: '橡皮擦' },
   ];
 
   return (
@@ -321,32 +354,33 @@ export function ImageAnnotationDialog({
           <DialogTitle>图片标注</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          {/* Toolbar */}
-          <div className="flex flex-wrap items-center gap-2 p-2 bg-muted rounded-lg">
-            {/* Tool buttons */}
-            <div className="flex gap-1">
+        <div className="flex flex-col gap-3 overflow-hidden">
+          {/* Toolbar - PWA-friendly with touch-friendly button sizes (min 44x44px) */}
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-muted rounded-lg overflow-x-auto">
+            {/* Tool buttons - touch-friendly min 44px tap targets */}
+            <div className="flex gap-1.5">
               {toolButtons.map(({ tool, icon, label }) => (
                 <Button
                   key={tool}
-                  size="sm"
+                  size="icon"
                   variant={state.currentTool === tool ? 'default' : 'outline'}
                   onClick={() => setTool(tool)}
                   title={label}
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] touch-manipulation"
                 >
                   {icon}
                 </Button>
               ))}
             </div>
 
-            <Separator orientation="vertical" className="h-8" />
+            <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
-            {/* Color picker */}
-            <div className="flex gap-1">
+            {/* Color picker - touch-friendly */}
+            <div className="flex gap-1.5">
               {ANNOTATION_COLORS.slice(0, 6).map((color) => (
                 <button
                   key={color}
-                  className={`w-6 h-6 rounded border-2 ${state.currentColor === color ? 'border-primary' : 'border-transparent'}`}
+                  className={`w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg border-2 touch-manipulation transition-transform active:scale-95 ${state.currentColor === color ? 'border-primary ring-2 ring-primary/30' : 'border-transparent'}`}
                   style={{ backgroundColor: color }}
                   onClick={() => setColor(color)}
                   title={color}
@@ -354,35 +388,35 @@ export function ImageAnnotationDialog({
               ))}
             </div>
 
-            <Separator orientation="vertical" className="h-8" />
+            <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
-            {/* Stroke width */}
-            <div className="flex gap-1">
+            {/* Stroke width - touch-friendly */}
+            <div className="flex gap-1.5">
               {STROKE_WIDTH_OPTIONS.slice(0, 4).map((width) => (
                 <Button
                   key={width}
-                  size="sm"
+                  size="icon"
                   variant={state.strokeWidth === width ? 'default' : 'outline'}
                   onClick={() => setStrokeWidth(width)}
-                  className="w-8"
+                  className="h-11 w-11 min-h-[44px] min-w-[44px] touch-manipulation text-sm font-medium"
                 >
                   {width}
                 </Button>
               ))}
             </div>
 
-            <Separator orientation="vertical" className="h-8" />
+            <Separator orientation="vertical" className="h-8 hidden sm:block" />
 
-            {/* Undo/Redo/Clear */}
-            <div className="flex gap-1">
-              <Button size="sm" variant="outline" onClick={undo} disabled={historyIndex <= 0} title="撤销">
-                <Undo2 className="h-4 w-4" />
+            {/* Undo/Redo/Clear - touch-friendly */}
+            <div className="flex gap-1.5">
+              <Button size="icon" variant="outline" onClick={undo} disabled={historyIndex <= 0} title="撤销" className="h-11 w-11 min-h-[44px] min-w-[44px] touch-manipulation">
+                <Undo2 className="h-5 w-5" />
               </Button>
-              <Button size="sm" variant="outline" onClick={redo} disabled={historyIndex >= history.length - 1} title="重做">
-                <Redo2 className="h-4 w-4" />
+              <Button size="icon" variant="outline" onClick={redo} disabled={historyIndex >= history.length - 1} title="重做" className="h-11 w-11 min-h-[44px] min-w-[44px] touch-manipulation">
+                <Redo2 className="h-5 w-5" />
               </Button>
-              <Button size="sm" variant="outline" onClick={clearAll} title="清除全部">
-                <Trash2 className="h-4 w-4" />
+              <Button size="icon" variant="outline" onClick={clearAll} title="清除全部" className="h-11 w-11 min-h-[44px] min-w-[44px] touch-manipulation">
+                <Trash2 className="h-5 w-5" />
               </Button>
             </div>
           </div>
@@ -411,17 +445,54 @@ export function ImageAnnotationDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
+        <DialogFooter className="flex-shrink-0">
+          <Button variant="outline" onClick={handleCancel} className="touch-manipulation">
             <X className="h-4 w-4 mr-2" />
             取消
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} className="touch-manipulation">
             <Check className="h-4 w-4 mr-2" />
             保存
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* PWA-friendly text input dialog - replaces browser prompt() */}
+      <Dialog open={textInputOpen} onOpenChange={(open) => !open && handleTextInputCancel()}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>输入文字</DialogTitle>
+            <DialogDescription>
+              输入要添加到图片上的文字
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="annotation-text" className="sr-only">文字内容</Label>
+            <Input
+              id="annotation-text"
+              value={textInputValue}
+              onChange={(e) => setTextInputValue(e.target.value)}
+              placeholder="输入文字..."
+              className="text-base"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleTextInputConfirm();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleTextInputCancel} className="touch-manipulation">
+              取消
+            </Button>
+            <Button onClick={handleTextInputConfirm} disabled={!textInputValue.trim()} className="touch-manipulation">
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

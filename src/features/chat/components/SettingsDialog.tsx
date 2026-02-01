@@ -405,15 +405,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[560px] max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>设置</DialogTitle>
           <DialogDescription>
             管理您的应用首选项和 API 连接
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="py-4">
+
+        <div className="py-4 overflow-y-auto flex-1 -mx-6 px-6">
           {/* API 配置 */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground">API 配置</h3>
@@ -896,7 +896,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter className="gap-2 sm:gap-0 flex-shrink-0 pt-4 border-t">
           <Button variant="outline" onClick={handleReset}>
             重置
           </Button>
